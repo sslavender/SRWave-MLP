@@ -13,28 +13,29 @@ import PIL.Image as pil_image
 import glob
 import os
 
-from model10_1_1_2 import SRWaveMLP
+from model10_1_1_2_1 import SRWaveMLP
 from utils import  calc_psnr , calc_ssim
+from skimage.metrics import peak_signal_noise_ratio as psnr
+from skimage.metrics import structural_similarity as ssim
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--weights-file', type=str,default='/home/dell/code/mlp/outputs/weight_2.23.pth')
-    parser.add_argument('--images-dir', type=str, default='/home/dell/code/mlp/bsds100/original')
+    parser.add_argument('--weights-file', type=str,default='/home/admin1/sct/SR/mlp/outputs/x4_2/weight_bsds100.pth')
+    parser.add_argument('--images-dir', type=str, default='/home/admin1/sct/SR/DataSets/manga109')
     parser.add_argument('--outputs', type=str, default='/home/dell/code/mlp/test/bsds100')
     parser.add_argument('--scale', type=int, default=4)
     args = parser.parse_args()
-
     cudnn.benchmark = True
     # device = torch.device('cuda: 1' if torch.cuda.is_available() else 'cpu')
 
 
 
-# 加载预训练模型
+#Load pre trained model
     transitions = [True, True, True, True]
     layers = [3,3]
     mlp_ratios = [4,4]
         # embed_dims = [64, 128, 320, 512]
-    embed_dims = [64,64]
+    embed_dims = [32,32]
     model = SRWaveMLP(layers, embed_dims=embed_dims, patch_size=7, transitions=transitions,
                         mlp_ratios=mlp_ratios,mode='depthwise',scale=4).cuda()
 
@@ -46,14 +47,14 @@ if __name__ == '__main__':
             raise KeyError(n)
 
 
-# 将模型设置为评估模式
+#Set the model to evaluation mode
     model.eval()
-    psnr = 0.
+    psnr1 = 0.
     total = 0
-    ssim = 0.
+    ssim1 = 0.
 
 for image_path in sorted(glob.glob('{}/*'.format(args.images_dir))):
-# 读取输入图像并进行预处理
+#Read input images and perform preprocessing
     image = pil_image.open(image_path).convert('RGB')
     image_width = (image.width // (args.scale**2)) * (args.scale**2)
     image_height = (image.height //  (args.scale**2)) *  (args.scale**2)
@@ -69,7 +70,7 @@ for image_path in sorted(glob.glob('{}/*'.format(args.images_dir))):
     # image.save(new_file_path.replace('.', '_bicubic_x{}.'.format(args.scale)))
 
 
-# 将输入图像转换为模型需要的格式并进行超分辨率重建
+#Convert the input image to the format required by the model and perform super-resolution reconstruction
     image = np.array(image).astype(np.float32)
     simage = np.array(simage).astype(np.float32)
     simage = simage/255.
@@ -92,20 +93,20 @@ for image_path in sorted(glob.glob('{}/*'.format(args.images_dir))):
         preds = model(y).clamp(0.0, 1.0)
 
 
-# 计算重建图像的PSNR值
+#Calculate the PSNR value of the reconstructed image
     spsnr = calc_psnr(preds,simage)
 
     ssim_score = calc_ssim(preds.permute(0,3,1,2),image_hr)
-    psnr += spsnr
+    psnr1 += spsnr
     total += 1
-    ssim += ssim_score
+    ssim1 += ssim_score
 
-#  # 对重建图像进行后处理并保存  
-#     preds = preds.mul(255.0).cpu().numpy().squeeze(0)
-#     output = np.clip(preds , 0.0, 255.0).astype(np.uint8)
-#     output = pil_image.fromarray(output)
-#     output.save(new_file_path.replace('.', '_mlp_x{}.'.format(spsnr)))
-mpsnr = psnr / total
-mssim = ssim / total
+    # Post process and save reconstructed images 
+    preds = preds.mul(255.0).cpu().numpy().squeeze(0)
+    output = np.clip(preds , 0.0, 255.0).astype(np.uint8)
+    output = pil_image.fromarray(output)
+    output.save(new_file_path.replace('.', '_mlp_x{}.'.format(spsnr)))
+mpsnr = psnr1 / total
+mssim = ssim1 / total
 print(mpsnr) 
 print(mssim) 
