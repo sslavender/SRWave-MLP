@@ -13,7 +13,7 @@ from torch import Tensor
 from torch.nn import init
 from torch.nn.modules.utils import _pair
 import torch.nn.functional as F
-from gated_fusion import Gated
+from gated_fusion import Gated,FC
 
 class ChannelAttention(nn.Module):
     def __init__(self, in_channels, reduction_ratio=16, dropout_rate=0.3):
@@ -106,6 +106,33 @@ class Mlp(nn.Module):
         x = self.fc2(x)
         x = self.drop(x)
         return x   
+
+# class Mlp_a(nn.Module):
+#     def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
+#         super().__init__()
+
+#         out_features = out_features or in_features
+#         hidden_features = hidden_features or in_features
+#         self.act = act_layer()
+#         self.drop = nn.Dropout(drop)
+#         self.fc1 = nn.Conv2d(in_features, hidden_features//2 , 1, 1)
+#         self.fc2 = nn.Conv2d(hidden_features, out_features, 1, 1)
+        
+#         self.cha = ChannelAttention(in_features*2)
+#     def forward(self, x):
+#         x_1 = self.conv_1(x)
+#         x_3 = self.conv_3(x)
+#         x_5 = self.conv_5(x)
+#         x_7 = self.conv_7(x)
+#         c = torch.cat((x_1,x_3,x_5,x_7),dim=1)
+#         attention = self.cha(c)
+#         x = self.fc1(x)
+#         x = self.act(x)
+#         x = self.drop(x)
+#         x = torch.cat((x,attention),dim=1)
+#         x = self.fc2(x)
+#         x = self.drop(x)
+#         return x   
 
 
 class PATM(nn.Module):
@@ -222,7 +249,7 @@ class Connection(nn.Module):
         return x        
 
 
-def basic_blocks(dim, index, layers, mlp_ratio=3., qkv_bias=False, qk_scale=None, attn_drop=0.,
+def basic_blocks(dim, index, layers, mlp_ratio=4., qkv_bias=False, qk_scale=None, attn_drop=0.,
                  drop_path_rate=0.,norm_layer=nn.BatchNorm2d,mode='fc', **kwargs):
     blocks = []
     for block_idx in range(layers[index]):
@@ -359,11 +386,7 @@ class SRWaveMLP(nn.Module):
             scale_factor= 0.5,
             mode='bilinear',
             align_corners=False)
-        inter_res2 = nn.functional.interpolate(
-            inter_res1,
-            scale_factor= 2,
-            mode='bilinear',
-            align_corners=False)
+        inter_res2 = x
 
         x = self.forward_embeddings(x)
         x = self.forward_tokens(x)
